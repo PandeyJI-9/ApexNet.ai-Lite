@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ApexNet | Elite Neural Console</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = { darkMode: 'class', theme: { extend: { colors: { apexDark: '#0b0f19', apexCard: '#111827', apexHover: '#1f2937' } } } }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+    <style>
+        body { background-color: #0b0f19; color: #f3f4f6; font-family: 'Inter', sans-serif; margin: 0; height: 100dvh; display: flex; overflow: hidden; }
+        ::-webkit-scrollbar { width: 5px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: #374151; border-radius: 4px; }
+        .prose pre { background: #030712 !important; border: 1px solid #1f2937; border-radius: 0.75rem; padding: 1rem; margin-top: 0.75rem; overflow-x: auto; }
+        .prose code { color: #60a5fa; } .prose p { margin-bottom: 0.85rem; line-height: 1.6; }
+        textarea { resize: none; overflow-y: hidden; } textarea:focus { outline: none; }
+        @keyframes apexGlow { 0% { opacity: 0.3; } 50% { opacity: 1; text-shadow: 0 0 12px #3b82f6; } 100% { opacity: 0.3; } }
+        .apex-glow { animation: apexGlow 2s infinite ease-in-out; }
+    </style>
+</head>
+<body class="bg-apexDark text-gray-100 flex h-[100dvh] w-full selection:bg-blue-500/30 relative">
+
+    <!-- 🔐 MODAL -->
+    <div id="authModal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
+        <div class="bg-apexCard border border-white/10 w-full max-w-md rounded-3xl p-8 shadow-2xl space-y-6">
+            <div class="text-center">
+                <div class="inline-flex p-3.5 bg-blue-600/10 rounded-2xl text-blue-500 mb-3 border border-blue-500/20"><i class="ph ph-shield-check text-3xl"></i></div>
+                <h2 class="text-2xl font-bold tracking-tight">ApexNet Secure Auth</h2>
+            </div>
+            <div class="flex bg-[#0b0f19] p-1 rounded-xl border border-white/5 text-xs font-medium">
+                <button onclick="switchTab('login')" id="tabLogin" class="flex-1 py-2.5 rounded-lg bg-blue-600 text-white transition-all shadow-md">Login</button>
+                <button onclick="switchTab('signup')" id="tabSignup" class="flex-1 py-2.5 rounded-lg text-gray-400 hover:text-white transition-all">Signup</button>
+            </div>
+            <div class="space-y-4">
+                <!-- 🛠 FIXED: Empty placeholders, no pre-filled names -->
+                <div><label class="text-xs text-gray-400 block mb-1 font-medium">Username</label><input type="text" id="authUsername" placeholder="Enter username" class="w-full bg-[#0b0f19] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500"></div>
+                <div><label class="text-xs text-gray-400 block mb-1 font-medium">Password</label><input type="password" id="authPassword" placeholder="Enter password" class="w-full bg-[#0b0f19] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500"></div>
+                <div id="signupKeyBox" class="hidden"><label class="text-xs text-gray-400 block mb-1 font-medium">Activation Key</label><input type="text" id="authKey" placeholder="e.g. Apex-Owner-999" class="w-full bg-[#0b0f19] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500"></div>
+                <p id="authError" class="text-xs text-red-400 text-center hidden font-medium"></p>
+                <button onclick="handleAuthSubmit()" id="authSubmitBtn" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-3 rounded-xl transition-all text-sm shadow-lg shadow-blue-600/30">Authenticate</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SIDEBAR -->
+    <aside class="w-[280px] bg-apexCard flex-shrink-0 flex flex-col hidden md:flex border-r border-white/5 shadow-xl">
+        <div class="p-4"><button onclick="createNewChat()" class="w-full flex items-center gap-3 px-4 py-3 rounded-2xl bg-blue-600 hover:bg-blue-500 transition-all text-sm font-semibold text-white"><i class="ph ph-plus text-lg"></i> New Chat</button></div>
+        <div class="flex-1 overflow-y-auto px-3 space-y-1.5" id="historyList"></div>
+        <div class="p-4 border-t border-white/5 flex items-center justify-between text-xs text-gray-400 bg-[#0b0f19]/40">
+            <span id="welcomeRoleText" class="font-medium text-blue-400">Not Logged In</span>
+            <button onclick="logout()" title="Logout" class="hover:text-red-400 text-base"><i class="ph ph-sign-out"></i></button>
+        </div>
+    </aside>
+
+    <!-- MAIN CHAT -->
+    <main class="flex-1 flex flex-col h-full w-full overflow-hidden bg-apexDark">
+        <header class="md:hidden flex items-center justify-between p-4 border-b border-white/5 bg-apexCard text-white flex-shrink-0">
+            <button onclick="document.querySelector('aside').classList.toggle('hidden')"><i class="ph ph-list text-2xl"></i></button>
+            <h1 class="font-bold text-sm">ApexNet Cloud</h1>
+            <i class="ph ph-plus text-xl text-blue-400" onclick="createNewChat()"></i>
+        </header>
+
+        <div id="chatBox" class="flex-1 overflow-y-auto p-4 md:p-8 w-full max-w-4xl mx-auto flex flex-col gap-6">
+            <div class="h-full flex flex-col items-center justify-center text-center px-4" id="welcomeScreen">
+                <div class="w-20 h-20 bg-blue-600/10 border border-blue-500/20 rounded-3xl flex items-center justify-center mb-5 apex-glow shadow-2xl"><i class="ph ph-cpu text-4xl text-blue-500"></i></div>
+                <h2 class="text-3xl font-extrabold mb-2 bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">ApexNet Enterprise</h2>
+                <p class="text-gray-400 text-sm">Database Sync Active. End-to-End Encrypted.</p>
+            </div>
+        </div>
+
+        <div class="flex-shrink-0 w-full pb-6 pt-2 px-4 md:px-8">
+            <div class="max-w-3xl mx-auto relative flex items-end bg-apexCard border border-white/10 rounded-2xl overflow-hidden focus-within:border-blue-500/60 p-2">
+                <textarea id="userInput" rows="1" class="w-full max-h-[160px] bg-transparent py-3 pl-3 pr-12 text-sm md:text-base text-gray-100 placeholder-gray-500" placeholder="Deploy commands..."></textarea>
+                <button id="sendBtn" onclick="handleSend()" class="absolute right-3 bottom-3 p-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl"><i class="ph ph-paper-plane-right text-lg"></i></button>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // 🔴🔴 APNA RENDER LINK DAAL 🔴🔴
+        const API_BASE = "https://TERA-RENDER-APP.onrender.com"; 
+        
+        let currentMode = 'login', currentChatId = null, chats = [], isWaiting = false;
+
+        function getAuthHeaders() {
+            return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('apex_token')}` };
+        }
+
+        async function initSystem() {
+            if (localStorage.getItem('apex_token')) {
+                document.getElementById('authModal').classList.add('hidden');
+                document.getElementById('welcomeRoleText').innerText = `Role: ${localStorage.getItem('apex_role')}`;
+                await fetchCloudChats();
+            } else { document.getElementById('authModal').classList.remove('hidden'); }
+        }
+
+        function switchTab(mode) {
+            currentMode = mode;
+            document.getElementById('tabLogin').className = mode === 'login' ? "flex-1 py-2.5 rounded-lg bg-blue-600 text-white" : "flex-1 py-2.5 rounded-lg text-gray-400";
+            document.getElementById('tabSignup').className = mode === 'signup' ? "flex-1 py-2.5 rounded-lg bg-blue-600 text-white" : "flex-1 py-2.5 rounded-lg text-gray-400";
+            document.getElementById('signupKeyBox').classList.toggle('hidden', mode === 'login');
+            document.getElementById('authSubmitBtn').innerText = mode === 'login' ? "Login" : "Create Account";
+        }
+
+        async function handleAuthSubmit() {
+            const user = document.getElementById('authUsername').value.trim();
+            const pass = document.getElementById('authPassword').value.trim();
+            const key = document.getElementById('authKey').value.trim();
+            const errBox = document.getElementById('authError');
+
+            if (!user || !pass) return errBox.innerText = "Fill fields!", errBox.classList.remove('hidden');
+
+            const endpoint = currentMode === 'login' ? '/auth/login' : '/auth/signup';
+            const payload = currentMode === 'login' ? { username: user, password: pass } : { username: user, password: pass, key: key };
+
+            try {
+                const res = await fetch(`${API_BASE}${endpoint}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail);
+                
+                localStorage.setItem('apex_token', data.token);
+                localStorage.setItem('apex_role', data.role);
+                initSystem();
+            } catch (err) { errBox.innerText = err.message; errBox.classList.remove('hidden'); }
+        }
+
+        function logout() { localStorage.clear(); location.reload(); }
+
+        async function fetchCloudChats() {
+            try {
+                const res = await fetch(`${API_BASE}/chats`, { headers: getAuthHeaders() });
+                if (res.ok) {
+                    chats = (await res.json()).chats.reverse();
+                    if (chats.length > 0) loadChat(chats[0].chat_id);
+                    else createNewChat();
+                    renderHistory();
+                } else logout();
+            } catch (e) {}
+        }
+
+        function createNewChat() {
+            currentChatId = 'chat_' + Date.now();
+            chats.unshift({ chat_id: currentChatId, title: "New Conversation", messages: [] });
+            document.getElementById('chatBox').innerHTML = ''; renderHistory();
+        }
+
+        function loadChat(id) {
+            currentChatId = id; document.getElementById('chatBox').innerHTML = ''; 
+            const chat = chats.find(c => c.chat_id === id);
+            if (chat) chat.messages.forEach(msg => appendUI(msg.role, msg.content, msg.thinking));
+            renderHistory();
+        }
+
+        function renderHistory() {
+            const list = document.getElementById('historyList'); list.innerHTML = '';
+            chats.forEach(chat => {
+                list.innerHTML += `<button onclick="loadChat('${chat.chat_id}')" class="w-full text-left px-3 py-2.5 rounded-xl ${chat.chat_id === currentChatId ? 'bg-blue-600/10 text-white' : 'text-gray-400'} text-sm truncate">💬 ${chat.title}</button>`;
+            });
+        }
+
+        function appendUI(role, text, thinking = null) {
+            const box = document.getElementById('chatBox');
+            if(document.getElementById('welcomeScreen')) document.getElementById('welcomeScreen').remove();
+            
+            const isUser = role === 'user';
+            let html = `<div class="w-full flex my-3 px-2 md:px-4 ${isUser ? 'justify-end' : 'justify-start'}">`;
+            
+            if (isUser) { html += `<div class="max-w-[85%] bg-blue-600 text-white px-5 py-3.5 rounded-2xl rounded-tr-sm text-sm break-words">${text}</div>`; } 
+            else {
+                html += `<div class="max-w-[90%] bg-apexCard border border-white/5 px-4 py-4 rounded-2xl rounded-tl-sm text-gray-200 w-full prose prose-invert overflow-x-auto">`;
+                if(thinking) html += `<details class="mb-4 bg-[#0b0f19] border border-blue-500/30 rounded-lg"><summary class="text-blue-400 p-2 text-xs cursor-pointer">🧠 View Process</summary><div class="p-2 text-gray-400 text-xs border-t border-blue-500/30 whitespace-pre-wrap">${thinking}</div></details>`;
+                html += `${marked.parse(text)}</div>`;
+            }
+            html += `</div>`;
+            box.insertAdjacentHTML('beforeend', html);
+            document.querySelectorAll('pre code').forEach(el => hljs.highlightElement(el));
+            box.scrollTop = box.scrollHeight;
+        }
+
+        async function handleSend() {
+            if(isWaiting) return;
+            const text = document.getElementById('userInput').value.trim();
+            if (!text) return;
+
+            appendUI('user', text); document.getElementById('userInput').value = ''; 
+            document.getElementById('sendBtn').disabled = true; isWaiting = true;
+
+            const chat = chats.find(c => c.chat_id === currentChatId);
+            chat.messages.push({ role: 'user', content: text });
+            if(chat.messages.length===1) chat.title = text.substring(0, 20);
+            renderHistory();
+
+            appendUI('assistant', '<span class="animate-pulse text-blue-400">Processing...</span>');
+            const loadingBubble = document.getElementById('chatBox').lastChild;
+
+            try {
+                const res = await fetch(`${API_BASE}/chat`, { method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ chat_id: currentChatId, prompt: text }) });
+                const data = await res.json();
+                loadingBubble.remove();
+                appendUI('assistant', data.answer, data.thinking);
+                chat.messages.push({ role: 'assistant', content: data.answer, thinking: data.thinking });
+            } catch (err) {
+                loadingBubble.remove(); appendUI('assistant', '🚨 Connection Error. Backend Sleeping.');
+            }
+            document.getElementById('sendBtn').disabled = false; isWaiting = false;
+        }
+        
+        document.getElementById('userInput').addEventListener('keydown', e => { if(e.key==='Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }});
+        initSystem();
+    </script>
+</body>
+</html>
