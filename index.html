@@ -37,7 +37,6 @@
                 <button onclick="switchTab('signup')" id="tabSignup" class="flex-1 py-2.5 rounded-lg text-gray-400 hover:text-white transition-all">Signup</button>
             </div>
             <div class="space-y-4">
-                <!-- 🛠 FIXED: Empty placeholders, no pre-filled names -->
                 <div><label class="text-xs text-gray-400 block mb-1 font-medium">Username</label><input type="text" id="authUsername" placeholder="Enter username" class="w-full bg-[#0b0f19] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500"></div>
                 <div><label class="text-xs text-gray-400 block mb-1 font-medium">Password</label><input type="password" id="authPassword" placeholder="Enter password" class="w-full bg-[#0b0f19] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500"></div>
                 <div id="signupKeyBox" class="hidden"><label class="text-xs text-gray-400 block mb-1 font-medium">Activation Key</label><input type="text" id="authKey" placeholder="e.g. Apex-Owner-999" class="w-full bg-[#0b0f19] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500"></div>
@@ -82,8 +81,8 @@
     </main>
 
     <script>
-        // 🔴🔴 APNA RENDER LINK DAAL 🔴🔴
-        const API_BASE = "https://TERA-RENDER-APP.onrender.com"; 
+        // ✅ Render Link already embedded here!
+        const API_BASE = "https://apexnet-ai-lite.onrender.com"; 
         
         let currentMode = 'login', currentChatId = null, chats = [], isWaiting = false;
 
