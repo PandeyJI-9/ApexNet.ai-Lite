@@ -37,28 +37,26 @@ except Exception as e:
     db = None
 
 # ==========================================
-# 3. HUGGING FACE SE MODEL LOAD KARNA 🔥
+# 3. HUGGING FACE SE MODEL LOAD KARNA 🔥 (ULTRA LOW RAM MODE)
 # ==========================================
 print("Fetching ApexNet from Hugging Face...")
 try:
     if hf_hub_download and Llama:
-        # 👇👇 TERA ASLI HUGGING FACE REPO 👇👇
+        # Tera Asli Hugging Face Repo
         HF_REPO_ID = "PandeyJi9/ApexNet-Lite"  
-        
-        # 🚨 DHYAN DE: Agar HF par teri file ka naam alag hai, toh yahan change kar lena!
         MODEL_FILENAME = "ApexNet_by_PandeyJi_0.5B.gguf"
         
         print(f"Downloading {MODEL_FILENAME} from {HF_REPO_ID}...")
-        
-        # Ye Render ke server pe model download karega
         model_path = hf_hub_download(repo_id=HF_REPO_ID, filename=MODEL_FILENAME)
         
-        print("✅ Downloaded! Loading into RAM...")
+        print("✅ Downloaded! Forcing into Disk Mapping (Saving RAM)...")
+        # 🔥 ULTRA LOW RAM LIMITS HATA MAT DENA 🔥
         llm = Llama(
             model_path=model_path,
-            n_ctx=256,       # Low RAM Limit
-            n_threads=2,     
-            use_mmap=False   
+            n_ctx=64,        # Extreme RAM save limit
+            n_threads=1,     # CPU load minimum
+            n_batch=1,       # Process 1 word at a time
+            use_mmap=True    # RAM bypass trick: Use Disk storage instead of RAM
         )
         print("✅ ApexNet AI Engine Ready!")
     else:
@@ -126,17 +124,17 @@ def get_chats(request: Request):
 def chat(req: ChatReq, request: Request):
     user = get_current_user(request)
     
-    thinking = f"1. Prompt received: {req.prompt}\n2. Booting up ApexNet-Lite from Hugging Face...\n"
+    thinking = f"1. Prompt received: {req.prompt}\n2. Booting up ApexNet-Lite from Disk Cache...\n"
     
     if llm is None:
-        answer = "Bhai, tera HF model load nahi ho paya. Ek baar repo aur file ka naam check kar!"
+        answer = "Bhai, tera HF model load nahi ho paya (RAM issue ya file missing)."
         thinking += "❌ Model initialization failed.\n"
     else:
         try:
             thinking += "3. Generating response via local GGUF model...\n"
             response = llm(
                 f"Question: {req.prompt}\nAnswer:", 
-                max_tokens=150, 
+                max_tokens=64, # Response bhi chota rakha hai taaki crash na ho
                 stop=["Question:", "\n"], 
                 echo=False
             )
