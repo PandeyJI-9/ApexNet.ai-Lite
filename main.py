@@ -1,14 +1,11 @@
-import os
-import urllib.parse
 import uuid
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from pymongo import MongoClient
-from duckduckgo_search import DDGS
 
 # ==========================================
-# 1. APP SETUP & CORS FIX (No More 'Failed to fetch')
+# 1. APP SETUP & CORS (Fixes 'Failed to fetch')
 # ==========================================
 app = FastAPI()
 
@@ -21,23 +18,21 @@ app.add_middleware(
 )
 
 # ==========================================
-# 2. DATABASE SETUP (Secured & URL Encoded)
+# 2. THE PERFECT MONGODB CONNECTION
 # ==========================================
-username = urllib.parse.quote_plus("APEXNETDATABASE")
-# Render dashboard se tera asli password uthayega
-raw_password = os.getenv("MONGO_PASS", "") 
-# Special characters ko khud theek karega
-encoded_password = urllib.parse.quote_plus(raw_password)
+# Tera exact naya link, directly embedded!
+MONGO_URI = "mongodb+srv://gamerinpubg1229_db_user:5cywj4SrBooKSN65@cluster0.0eit7bi.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 
-mongo_uri = f"mongodb+srv://{username}:{encoded_password}@cluster0.erkfyjv.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
-
-print("Connecting to MongoDB...")
+print("Connecting to MongoDB Atlas...")
 try:
-    client = MongoClient(mongo_uri, serverSelectionTimeoutMS=5000)
+    client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
     db = client.get_database("apexnet")
     users_col = db.get_collection("users")
     chats_col = db.get_collection("chats")
-    print("✅ Database Connected Successfully!")
+    
+    # Ek ping test confirm karne ke liye ki andar access mil gaya
+    client.admin.command('ping')
+    print("✅ Database Connected & Verified Successfully!")
 except Exception as e:
     print(f"❌ Database Error: {e}")
     db = None
@@ -59,29 +54,26 @@ class ChatReq(BaseModel):
     prompt: str
 
 # ==========================================
-# 4. API ROUTES (Login & Signup)
+# 4. API ROUTES (Complete Auth System)
 # ==========================================
 @app.get("/health")
 def health_check():
-    return {"status": "ApexNet Enterprise is Live!"}
+    return {"status": "ApexNet Database is Live and Secure! 🚀"}
 
 @app.post("/auth/signup")
 def signup(req: SignupReq):
     if db is None:
         raise HTTPException(status_code=500, detail="Database Offline")
     
-    role = "User"
-    if req.key == "Apex-Owner-999":
-        role = "Admin"
-    elif req.key != "Apex-Lite-0001":
+    role = "Admin" if req.key == "Apex-Owner-999" else "User"
+    if req.key not in ["Apex-Owner-999", "Apex-Lite-0001"]:
         raise HTTPException(status_code=400, detail="Invalid Activation Key!")
 
     if users_col.find_one({"username": req.username}):
-        raise HTTPException(status_code=400, detail="Username already taken!")
+        raise HTTPException(status_code=400, detail="Username already exists!")
     
     token = "token_" + str(uuid.uuid4())
-    new_user = {"username": req.username, "password": req.password, "role": role, "token": token}
-    users_col.insert_one(new_user)
+    users_col.insert_one({"username": req.username, "password": req.password, "role": role, "token": token})
     return {"token": token, "role": role}
 
 @app.post("/auth/login")
@@ -115,27 +107,16 @@ def get_chats(request: Request):
     return {"chats": user_chats}
 
 # ==========================================
-# 5. AI & CHAT LOGIC (Lightweight + Web Search)
+# 5. CHAT LOGIC (Saving strictly to Database)
 # ==========================================
 @app.post("/chat")
 def chat(req: ChatReq, request: Request):
     user = get_current_user(request)
     
-    thinking = "1. Processing user prompt...\n2. Initializing ApexNet Lightweight Engine...\n"
-    
-    try:
-        # Live Web Search
-        thinking += "3. Fetching real-time context via DuckDuckGo...\n"
-        results = DDGS().text(req.prompt, max_results=1)
-        search_context = results[0]['body'] if results else "No recent data found."
-        thinking += "4. Context acquired. Generating response..."
-        
-        answer = f"**System Response:**\n{search_context}\n\n*ApexNet Database Sync Active. Query processed for {user['username']}*"
-    except Exception as e:
-        thinking += f"\nSearch bypassed due to connection.\n"
-        answer = f"Hello **{user['username']}**! ApexNet received your prompt: *'{req.prompt}'*"
+    thinking = "1. Processing prompt...\n2. Routing through Secure MongoDB Atlas...\n3. ApexNet System Active!\n"
+    answer = f"Hello **{user['username']}**! Your prompt: *'{req.prompt}'* has been fully processed and saved to the new database! 💯"
 
-    # Save to MongoDB
+    # Save to MongoDB Database (Permanent Save)
     chat_doc = chats_col.find_one({"chat_id": req.chat_id, "username": user["username"]})
     user_msg = {"role": "user", "content": req.prompt}
     bot_msg = {"role": "assistant", "content": answer, "thinking": thinking}
