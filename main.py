@@ -1,11 +1,13 @@
 import uuid
+import datetime
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from pymongo import MongoClient
+from duckduckgo_search import DDGS
 
 # ==========================================
-# 1. APP SETUP & CORS (Fixes 'Failed to fetch')
+# 1. APP SETUP & CORS 
 # ==========================================
 app = FastAPI()
 
@@ -18,9 +20,8 @@ app.add_middleware(
 )
 
 # ==========================================
-# 2. THE PERFECT MONGODB CONNECTION
+# 2. MONGODB CONNECTION
 # ==========================================
-# Tera exact naya link, directly embedded!
 MONGO_URI = "mongodb+srv://gamerinpubg1229_db_user:5cywj4SrBooKSN65@cluster0.0eit7bi.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 
 print("Connecting to MongoDB Atlas...")
@@ -29,8 +30,6 @@ try:
     db = client.get_database("apexnet")
     users_col = db.get_collection("users")
     chats_col = db.get_collection("chats")
-    
-    # Ek ping test confirm karne ke liye ki andar access mil gaya
     client.admin.command('ping')
     print("✅ Database Connected & Verified Successfully!")
 except Exception as e:
@@ -54,21 +53,19 @@ class ChatReq(BaseModel):
     prompt: str
 
 # ==========================================
-# 4. API ROUTES (Complete Auth System)
+# 4. API ROUTES (Auth)
 # ==========================================
 @app.get("/health")
 def health_check():
-    return {"status": "ApexNet Database is Live and Secure! 🚀"}
+    return {"status": "ApexNet System is Live!"}
 
 @app.post("/auth/signup")
 def signup(req: SignupReq):
     if db is None:
         raise HTTPException(status_code=500, detail="Database Offline")
-    
     role = "Admin" if req.key == "Apex-Owner-999" else "User"
     if req.key not in ["Apex-Owner-999", "Apex-Lite-0001"]:
         raise HTTPException(status_code=400, detail="Invalid Activation Key!")
-
     if users_col.find_one({"username": req.username}):
         raise HTTPException(status_code=400, detail="Username already exists!")
     
@@ -80,11 +77,9 @@ def signup(req: SignupReq):
 def login(req: LoginReq):
     if db is None:
         raise HTTPException(status_code=500, detail="Database Offline")
-        
     user = users_col.find_one({"username": req.username, "password": req.password})
     if not user:
         raise HTTPException(status_code=401, detail="Invalid Username or Password!")
-        
     return {"token": user["token"], "role": user.get("role", "User")}
 
 def get_current_user(request: Request):
@@ -93,7 +88,6 @@ def get_current_user(request: Request):
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Unauthorized")
-    
     token = auth_header.split(" ")[1]
     user = users_col.find_one({"token": token})
     if not user:
@@ -107,16 +101,38 @@ def get_chats(request: Request):
     return {"chats": user_chats}
 
 # ==========================================
-# 5. CHAT LOGIC (Saving strictly to Database)
+# 5. ASLI AI CHAT LOGIC (Dimag Is Back!)
 # ==========================================
 @app.post("/chat")
 def chat(req: ChatReq, request: Request):
     user = get_current_user(request)
+    prompt_lower = req.prompt.lower()
     
-    thinking = "1. Processing prompt...\n2. Routing through Secure MongoDB Atlas...\n3. ApexNet System Active!\n"
-    answer = f"Hello **{user['username']}**! Your prompt: *'{req.prompt}'* has been fully processed and saved to the new database! 💯"
+    thinking = f"1. Processing prompt from {user['username']}...\n2. Analyzing context...\n"
+    
+    # 🧠 AI KA LOGIC
+    if "tarik" in prompt_lower or "date" in prompt_lower:
+        aaj_ki_tarik = datetime.datetime.now().strftime("%d %B %Y")
+        answer = f"Bhai, aaj ki tarik **{aaj_ki_tarik}** hai. Aur bata kya madad karu?"
+        thinking += "3. Extracted current system date.\n"
+        
+    elif "naam" in prompt_lower:
+        answer = f"Mera naam **ApexNet AI** hai! Aur tu mera admin hai. 😎"
+        thinking += "3. Identity matrix loaded.\n"
+        
+    else:
+        try:
+            # DuckDuckGo Live Search Engine
+            thinking += "3. Searching live web for the answer...\n"
+            results = DDGS().text(req.prompt, max_results=1)
+            search_context = results[0]['body'] if results else "Mujhe samajh nahi aaya bhai, thoda aur detail me bata."
+            answer = f"**Result:**\n{search_context}"
+            thinking += "4. Fetched real-time data from DuckDuckGo.\n"
+        except Exception as e:
+            answer = "Bhai server abhi thoda busy hai, par mera connection MongoDB se 100% done hai! 🔥"
+            thinking += "3. Search bypassed due to high load.\n"
 
-    # Save to MongoDB Database (Permanent Save)
+    # Save to MongoDB
     chat_doc = chats_col.find_one({"chat_id": req.chat_id, "username": user["username"]})
     user_msg = {"role": "user", "content": req.prompt}
     bot_msg = {"role": "assistant", "content": answer, "thinking": thinking}
