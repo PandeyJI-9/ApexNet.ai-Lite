@@ -1,16 +1,15 @@
 import uuid
-import os
 import datetime
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from pymongo import MongoClient
 
-# Imports for AI and Search
+# Imports for AI and Live Search
 try:
     from huggingface_hub import hf_hub_download
     from llama_cpp import Llama
-    from duckduckgo_search import DDGS
+    from ddgs import DDGS
 except ImportError:
     hf_hub_download = None
     Llama = None
@@ -40,7 +39,7 @@ except Exception as e:
     db = None
 
 # ==========================================
-# 3. HUGGING FACE MODEL LOAD (ULTRA LOW RAM)
+# 3. HUGGING FACE MODEL LOAD (EXTREME RAM SAVER)
 # ==========================================
 print("Fetching ApexNet from Hugging Face...")
 try:
@@ -54,8 +53,8 @@ try:
         print("✅ Downloaded! Forcing Disk Mapping...")
         llm = Llama(
             model_path=model_path,
-            n_ctx=128,       # Thoda context badhaya hai Live Search ke liye
-            n_threads=1,     
+            n_ctx=128,       # Context low to save RAM
+            n_threads=1,     # CPU throttled to prevent crashes
             n_batch=1,       
             use_mmap=True    
         )
@@ -124,21 +123,20 @@ def get_chats(request: Request):
 @app.post("/chat")
 def chat(req: ChatReq, request: Request):
     user = get_current_user(request)
-    
     thinking = f"1. Prompt received: {req.prompt}\n2. Booting ApexNet-Lite Engine...\n"
     search_context = ""
 
-    # Live DuckDuckGo Search Logic
+    # Live DDGS Search Logic
     if DDGS:
         try:
-            thinking += "3. Fetching live data from DuckDuckGo...\n"
-            # Sirf 1 result lenge aur usko truncate karenge taaki RAM na fate
+            thinking += "3. Fetching live data from DDGS...\n"
             results = DDGS().text(req.prompt, max_results=1)
             if results:
-                search_context = results[0]['body'][:100]  # Max 100 characters
+                # RAM bachane ke liye internet ka data max 80 words kar diya
+                search_context = results[0]['body'][:80] 
                 thinking += "   ✅ Live Web Data injected!\n"
         except Exception as e:
-            thinking += "   ⚠️ Search Engine blocked or timeout (Running offline mode).\n"
+            thinking += "   ⚠️ Search timeout (Running offline mode).\n"
     
     if llm is None:
         answer = "Bhai, tera HF model load nahi ho paya (RAM issue ya file missing)."
@@ -147,18 +145,17 @@ def chat(req: ChatReq, request: Request):
         try:
             thinking += "4. Generating ApexNet response...\n"
             
-            # 🔥 PROMPT ENGINEERING: Search + Bhai Mode
             aaj_ki_tarik = datetime.datetime.now().strftime("%d %B %Y")
-            custom_prompt = f"System: Tu 'ApexNet', ek smart AI hai. Aaj ki tarik {aaj_ki_tarik} hai. Tu hamesha 'Bhai' bol kar dosti wale Hinglish me baat karta hai.\n"
+            custom_prompt = f"System: Tu 'ApexNet', ek smart AI hai. Aaj {aaj_ki_tarik} hai. Tu hamesha 'Bhai' bol kar dosti wale Hinglish me baat karta hai.\n"
             
             if search_context:
-                custom_prompt += f"Live Web Info: {search_context}\n"
+                custom_prompt += f"Web Info: {search_context}\n"
                 
             custom_prompt += f"User: {req.prompt}\nAI:"
             
             response = llm(
                 custom_prompt, 
-                max_tokens=60, # Tokens limit me rakhe hain taaki crash na ho
+                max_tokens=60, # Strict limit to stop silent crashes
                 stop=["User:", "\n\n", "System:"], 
                 echo=False
             )
@@ -169,7 +166,7 @@ def chat(req: ChatReq, request: Request):
                 
             thinking += "5. AI output successful! 🚀\n"
         except Exception as e:
-            answer = "Bhai tera prompt process karne me server ki saans phool gayi. 137 RAM error se bacha raha hu, wapas try kar!"
+            answer = "Bhai tera prompt process karne me server ki saans phool gayi. Memory full hone wali thi!"
             thinking += f"❌ Generation Error: {e}\n"
 
     # Save to MongoDB
