@@ -1,10 +1,14 @@
 import uuid
-import datetime
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from pymongo import MongoClient
-from duckduckgo_search import DDGS
+
+# AI Model ke liye
+try:
+    from llama_cpp import Llama
+except ImportError:
+    Llama = None
 
 # ==========================================
 # 1. APP SETUP & CORS 
@@ -30,14 +34,34 @@ try:
     db = client.get_database("apexnet")
     users_col = db.get_collection("users")
     chats_col = db.get_collection("chats")
-    client.admin.command('ping')
-    print("✅ Database Connected & Verified Successfully!")
+    print("✅ Database Connected Successfully!")
 except Exception as e:
     print(f"❌ Database Error: {e}")
     db = None
 
 # ==========================================
-# 3. REQUEST MODELS
+# 3. TERA CUSTOM AI MODEL LOAD KARNA
+# ==========================================
+# Render RAM bachane ke liye (n_ctx aur threads kam rakhe hain)
+print("Loading ApexNet_by_PandeyJi_0.5B.gguf...")
+try:
+    if Llama is not None:
+        llm = Llama(
+            model_path="./ApexNet_by_PandeyJi_0.5B.gguf",  # Make sure naam ekdum yahi ho file ka
+            n_ctx=256,       # RAM bachane ke liye chota context
+            n_threads=2,     # CPU load kam karne ke liye
+            use_mmap=False   # Low memory systems (Render) ke liye best
+        )
+        print("✅ ApexNet AI Engine Loaded!")
+    else:
+        llm = None
+        print("❌ llama-cpp-python install nahi hai!")
+except Exception as e:
+    print(f"❌ Model Load Error (Shayad RAM full ho gayi): {e}")
+    llm = None
+
+# ==========================================
+# 4. REQUEST MODELS
 # ==========================================
 class SignupReq(BaseModel):
     username: str
@@ -53,11 +77,11 @@ class ChatReq(BaseModel):
     prompt: str
 
 # ==========================================
-# 4. API ROUTES (Auth)
+# 5. API ROUTES (Auth & DB)
 # ==========================================
 @app.get("/health")
 def health_check():
-    return {"status": "ApexNet System is Live!"}
+    return {"status": "ApexNet AI System is Live!"}
 
 @app.post("/auth/signup")
 def signup(req: SignupReq):
@@ -101,36 +125,34 @@ def get_chats(request: Request):
     return {"chats": user_chats}
 
 # ==========================================
-# 5. ASLI AI CHAT LOGIC (Dimag Is Back!)
+# 6. TERA MODEL RUN KARNE KA LOGIC
 # ==========================================
 @app.post("/chat")
 def chat(req: ChatReq, request: Request):
     user = get_current_user(request)
-    prompt_lower = req.prompt.lower()
     
-    thinking = f"1. Processing prompt from {user['username']}...\n2. Analyzing context...\n"
+    thinking = f"1. Prompt received: {req.prompt}\n2. Booting up ApexNet_by_PandeyJi_0.5B...\n"
     
-    # 🧠 AI KA LOGIC
-    if "tarik" in prompt_lower or "date" in prompt_lower:
-        aaj_ki_tarik = datetime.datetime.now().strftime("%d %B %Y")
-        answer = f"Bhai, aaj ki tarik **{aaj_ki_tarik}** hai. Aur bata kya madad karu?"
-        thinking += "3. Extracted current system date.\n"
-        
-    elif "naam" in prompt_lower:
-        answer = f"Mera naam **ApexNet AI** hai! Aur tu mera admin hai. 😎"
-        thinking += "3. Identity matrix loaded.\n"
-        
+    if llm is None:
+        answer = "Bhai, tera model load nahi ho paya (Shayad Render ki RAM full ho gayi ya file nahi mili)."
+        thinking += "❌ Model initialization failed.\n"
     else:
         try:
-            # DuckDuckGo Live Search Engine
-            thinking += "3. Searching live web for the answer...\n"
-            results = DDGS().text(req.prompt, max_results=1)
-            search_context = results[0]['body'] if results else "Mujhe samajh nahi aaya bhai, thoda aur detail me bata."
-            answer = f"**Result:**\n{search_context}"
-            thinking += "4. Fetched real-time data from DuckDuckGo.\n"
+            thinking += "3. Generating response via local GGUF model...\n"
+            
+            # Model generation prompt
+            response = llm(
+                f"Question: {req.prompt}\nAnswer:", 
+                max_tokens=150, 
+                stop=["Question:", "\n"], 
+                echo=False
+            )
+            
+            answer = response["choices"][0]["text"].strip()
+            thinking += "4. AI output successful! 🚀\n"
         except Exception as e:
-            answer = "Bhai server abhi thoda busy hai, par mera connection MongoDB se 100% done hai! 🔥"
-            thinking += "3. Search bypassed due to high load.\n"
+            answer = "Model ne generate karne me error de diya bhai."
+            thinking += f"❌ Error: {e}\n"
 
     # Save to MongoDB
     chat_doc = chats_col.find_one({"chat_id": req.chat_id, "username": user["username"]})
