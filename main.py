@@ -1,17 +1,20 @@
 import uuid
 import os
+import datetime
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from pymongo import MongoClient
 
-# HF aur Llama-cpp imports
+# Imports for AI and Search
 try:
     from huggingface_hub import hf_hub_download
     from llama_cpp import Llama
+    from duckduckgo_search import DDGS
 except ImportError:
     hf_hub_download = None
     Llama = None
+    DDGS = None
 
 # ==========================================
 # 1. APP SETUP & CORS 
@@ -37,26 +40,24 @@ except Exception as e:
     db = None
 
 # ==========================================
-# 3. HUGGING FACE SE MODEL LOAD KARNA 🔥 (ULTRA LOW RAM MODE)
+# 3. HUGGING FACE MODEL LOAD (ULTRA LOW RAM)
 # ==========================================
 print("Fetching ApexNet from Hugging Face...")
 try:
     if hf_hub_download and Llama:
-        # Tera Asli Hugging Face Repo
         HF_REPO_ID = "PandeyJi9/ApexNet-Lite"  
         MODEL_FILENAME = "ApexNet_by_PandeyJi_0.5B.gguf"
         
         print(f"Downloading {MODEL_FILENAME} from {HF_REPO_ID}...")
         model_path = hf_hub_download(repo_id=HF_REPO_ID, filename=MODEL_FILENAME)
         
-        print("✅ Downloaded! Forcing into Disk Mapping (Saving RAM)...")
-        # 🔥 ULTRA LOW RAM LIMITS HATA MAT DENA 🔥
+        print("✅ Downloaded! Forcing Disk Mapping...")
         llm = Llama(
             model_path=model_path,
-            n_ctx=64,        # Extreme RAM save limit
-            n_threads=1,     # CPU load minimum
-            n_batch=1,       # Process 1 word at a time
-            use_mmap=True    # RAM bypass trick: Use Disk storage instead of RAM
+            n_ctx=128,       # Thoda context badhaya hai Live Search ke liye
+            n_threads=1,     
+            n_batch=1,       
+            use_mmap=True    
         )
         print("✅ ApexNet AI Engine Ready!")
     else:
@@ -67,7 +68,7 @@ except Exception as e:
     llm = None
 
 # ==========================================
-# 4. REQUEST MODELS & API ROUTES
+# 4. REQUEST MODELS & AUTH ROUTES
 # ==========================================
 class SignupReq(BaseModel):
     username: str
@@ -118,31 +119,58 @@ def get_chats(request: Request):
     return {"chats": list(chats_col.find({"username": user["username"]}, {"_id": 0}))}
 
 # ==========================================
-# 5. ASLI MODEL INFERENCE (Chat)
+# 5. ASLI AI + LIVE RESEARCH ENGINE 🌐
 # ==========================================
 @app.post("/chat")
 def chat(req: ChatReq, request: Request):
     user = get_current_user(request)
     
-    thinking = f"1. Prompt received: {req.prompt}\n2. Booting up ApexNet-Lite from Disk Cache...\n"
+    thinking = f"1. Prompt received: {req.prompt}\n2. Booting ApexNet-Lite Engine...\n"
+    search_context = ""
+
+    # Live DuckDuckGo Search Logic
+    if DDGS:
+        try:
+            thinking += "3. Fetching live data from DuckDuckGo...\n"
+            # Sirf 1 result lenge aur usko truncate karenge taaki RAM na fate
+            results = DDGS().text(req.prompt, max_results=1)
+            if results:
+                search_context = results[0]['body'][:100]  # Max 100 characters
+                thinking += "   ✅ Live Web Data injected!\n"
+        except Exception as e:
+            thinking += "   ⚠️ Search Engine blocked or timeout (Running offline mode).\n"
     
     if llm is None:
         answer = "Bhai, tera HF model load nahi ho paya (RAM issue ya file missing)."
         thinking += "❌ Model initialization failed.\n"
     else:
         try:
-            thinking += "3. Generating response via local GGUF model...\n"
+            thinking += "4. Generating ApexNet response...\n"
+            
+            # 🔥 PROMPT ENGINEERING: Search + Bhai Mode
+            aaj_ki_tarik = datetime.datetime.now().strftime("%d %B %Y")
+            custom_prompt = f"System: Tu 'ApexNet', ek smart AI hai. Aaj ki tarik {aaj_ki_tarik} hai. Tu hamesha 'Bhai' bol kar dosti wale Hinglish me baat karta hai.\n"
+            
+            if search_context:
+                custom_prompt += f"Live Web Info: {search_context}\n"
+                
+            custom_prompt += f"User: {req.prompt}\nAI:"
+            
             response = llm(
-                f"Question: {req.prompt}\nAnswer:", 
-                max_tokens=64, # Response bhi chota rakha hai taaki crash na ho
-                stop=["Question:", "\n"], 
+                custom_prompt, 
+                max_tokens=60, # Tokens limit me rakhe hain taaki crash na ho
+                stop=["User:", "\n\n", "System:"], 
                 echo=False
             )
             answer = response["choices"][0]["text"].strip()
-            thinking += "4. AI output successful! 🚀\n"
+            
+            if not answer:
+                answer = "Bhai main thoda confuse ho gaya, ek baar phir se pooch! 😅"
+                
+            thinking += "5. AI output successful! 🚀\n"
         except Exception as e:
-            answer = "Model ne generate karne me error de diya bhai."
-            thinking += f"❌ Error: {e}\n"
+            answer = "Bhai tera prompt process karne me server ki saans phool gayi. 137 RAM error se bacha raha hu, wapas try kar!"
+            thinking += f"❌ Generation Error: {e}\n"
 
     # Save to MongoDB
     chat_doc = chats_col.find_one({"chat_id": req.chat_id, "username": user["username"]})
